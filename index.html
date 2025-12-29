@@ -45,7 +45,7 @@
                     </tr>
                 </thead>
                 <tbody>
-                    <tr><td colspan="9" class="loading">Loading data…</td></tr>
+                    <tr><td colspan="9" class="loading">Authenticated भएपछि डाटा लोड हुन्छ...</td></tr>
                 </tbody>
             </table>
         </div>
@@ -53,13 +53,11 @@
 
     <script>
         const GOOGLE_CLIENT_ID = "101117674196-pkfn1k7ibmhues3a12gflnsufvi26jdc.apps.googleusercontent.com";
-        const allowedEmails = ["niraz20@gmail.com"]; // Add more emails here
+        const allowedEmails = ["niraz20@gmail.com"]; // Add more here
 
-const csvUrl = "https://api.allorigins.win/raw?url=" + encodeURIComponent(
-    "https://docs.google.com/spreadsheets/d/e/2PACX-1vT6ur5_QejKGwx6a3Sa4Yw8v1hyFyWp6XuwzX9IHdKkuTFFlXhFZ2dB2cdsXaZ_uG_DnSy4y1X8Fktv/pub?gid=486453257&single=true&output=csv"
-);
-
-        let userEmail = null;
+        const csvUrl = "https://api.allorigins.win/raw?url=" + encodeURIComponent(
+            "https://docs.google.com/spreadsheets/d/e/2PACX-1vT6ur5_QejKGwx6a3Sa4Yw8v1hyFyWp6XuwzX9IHdKkuTFFlXhFZ2dB2cdsXaZ_uG_DnSy4y1X8Fktv/pub?gid=486453257&single=true&output=csv"
+        );
 
         google.accounts.id.initialize({
             client_id: GOOGLE_CLIENT_ID,
@@ -73,31 +71,44 @@ const csvUrl = "https://api.allorigins.win/raw?url=" + encodeURIComponent(
         );
 
         function handleCredentialResponse(response) {
-            const data = JSON.parse(atob(response.credential.split('.')[1]));
-            userEmail = data.email;
-            const authMessage = document.getElementById("authMessage");
+            try {
+                const data = JSON.parse(atob(response.credential.split('.')[1]));
+                const userEmail = data.email;
+                const authMessage = document.getElementById("authMessage");
 
-            if (allowedEmails.includes(userEmail)) {
-                document.getElementById("authSection").style.display = "none";
-                document.getElementById("tableSection").style.display = "block";
-                loadSheetData();
-            } else {
-                authMessage.textContent = "Access denied: Your email (" + userEmail + ") is not authorized.";
+                if (allowedEmails.includes(userEmail)) {
+                    document.getElementById("authSection").style.display = "none";
+                    document.getElementById("tableSection").style.display = "block";
+                    loadSheetData();
+                } else {
+                    authMessage.textContent = "Access denied: Your email (" + userEmail + ") is not authorized.";
+                }
+            } catch (e) {
+                document.getElementById("authMessage").textContent = "Sign-in error. Try again.";
             }
         }
 
         function loadSheetData() {
+            const tbody = document.querySelector("#sheetTable tbody");
+            tbody.innerHTML = "<tr><td colspan='9' class='loading'>Loading data from sheet...</td></tr>";
+
             fetch(csvUrl)
-                .then(response => { if (!response.ok) throw new Error("Network error"); return response.text(); })
+                .then(response => {
+                    if (!response.ok) throw new Error("HTTP " + response.status);
+                    return response.text();
+                })
                 .then(csvText => {
                     Papa.parse(csvText, {
                         complete: function(results) {
                             const data = results.data;
-                            const tbody = document.querySelector("#sheetTable tbody");
                             tbody.innerHTML = "";
+                            let hasData = false;
+
                             for (let i = 1; i < data.length; i++) {
                                 const row = data[i];
-                                if (row.length === 1 || row.every(cell => cell.trim() === "")) continue;
+                                if (!row || row.every(cell => !cell || cell.trim() === "")) continue;
+
+                                hasData = true;
                                 const tr = document.createElement("tr");
                                 for (let j = 0; j < 9; j++) {
                                     const td = document.createElement("td");
@@ -106,18 +117,20 @@ const csvUrl = "https://api.allorigins.win/raw?url=" + encodeURIComponent(
                                 }
                                 tbody.appendChild(tr);
                             }
-                            if (tbody.children.length === 0) {
-                                tbody.innerHTML = `<tr><td colspan="9" class="loading">No data found.</td></tr>`;
+
+                            if (!hasData) {
+                                tbody.innerHTML = "<tr><td colspan='9' class='loading'>No data rows found in the sheet. Add rows to your Google Sheet.</td></tr>";
                             }
+                        },
+                        error: function(err) {
+                            tbody.innerHTML = `<tr><td colspan='9' class='loading error'>CSV parse error: ${err}</td></tr>`;
                         }
                     });
                 })
                 .catch(error => {
-                    document.querySelector("#sheetTable tbody").innerHTML =
-                        `<tr><td colspan="9" class="loading error">Failed to load data: ${error.message}</td></tr>`;
+                    tbody.innerHTML = `<tr><td colspan='9' class='loading error'>Failed to load data: ${error.message}<br>Check console (F12) for details.</td></tr>`;
                 });
         }
     </script>
 </body>
 </html>
-
