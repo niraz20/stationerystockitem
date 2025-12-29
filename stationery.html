@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Google Sheet Data Table</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f5f5f5;
+            padding: 20px;
+            margin: 0;
+        }
+        h2 {
+            text-align: center;
+            margin-bottom: 20px;
+            color: #333;
+        }
+        .table-wrapper {
+            overflow-x: auto;
+            background: #fff;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            border-radius: 8px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 900px;
+        }
+        th {
+            background: #9BBB59;
+            color: #000;
+            padding: 12px;
+            border: 1px solid #ddd;
+            font-weight: bold;
+            text-align: center;
+            position: sticky;
+            top: 0;
+        }
+        td {
+            padding: 10px;
+            border: 1px solid #ddd;
+            text-align: center;
+            word-break: break-word;
+        }
+        tr:nth-child(even) {
+            background: #f2f2f2;
+        }
+        tr:hover {
+            background: #e8f5e0;
+        }
+        .loading {
+            text-align: center;
+            padding: 30px;
+            font-style: italic;
+            color: #666;
+        }
+        .error {
+            color: red;
+        }
+    </style>
+    <!-- Papa Parse for reliable CSV parsing (handles quotes and special chars) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+</head>
+<body>
+    <h2>सामानको रेकर्ड</h2>
+    <div class="table-wrapper">
+        <table id="sheetTable">
+            <thead>
+                <tr>
+                    <th>कोड नं.</th>
+                    <th>संकल नं.</th>
+                    <th>सामानको नाम</th>
+                    <th>स्पेसिफिकेशन</th>
+                    <th>मोडल</th>
+                    <th>पहिचान नं.</th>
+                    <th>परिमाण</th>
+                    <th>इकाई</th>
+                    <th>कैफियत</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td colspan="9" class="loading">Loading data from Google Sheet…</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        // Use CORS proxy to avoid CORS error
+        const csvUrl = "https://corsproxy.io/?" + encodeURIComponent(
+            "https://docs.google.com/spreadsheets/d/e/2PACX-1vT6ur5_QejKGwx6a3Sa4Yw8v1hyFyWp6XuwzX9IHdKkuTFFlXhFZ2dB2cdsXaZ_uG_DnSy4y1X8Fktv/pub?gid=486453257&single=true&output=csv"
+        );
+
+        fetch(csvUrl)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error("Network response was not ok: " + response.statusText);
+                }
+                return response.text();
+            })
+            .then(csvText => {
+                Papa.parse(csvText, {
+                    encoding: "UTF-8",
+                    complete: function(results) {
+                        const data = results.data;
+                        const tbody = document.querySelector("#sheetTable tbody");
+                        tbody.innerHTML = ""; // Clear loading message
+
+                        // Skip header row (index 0), start from row 1
+                        for (let i = 1; i < data.length; i++) {
+                            const row = data[i];
+                            // Skip empty rows
+                            if (row.length === 1 || row.every(cell => cell.trim() === "")) continue;
+
+                            const tr = document.createElement("tr");
+
+                            // Always create 9 cells (even if some are missing)
+                            for (let j = 0; j < 9; j++) {
+                                const td = document.createElement("td");
+                                td.textContent = row[j] ? row[j].trim() : "";
+                                tr.appendChild(td);
+                            }
+                            tbody.appendChild(tr);
+                        }
+
+                        if (tbody.children.length === 0) {
+                            tbody.innerHTML = `<tr><td colspan="9" class="loading">No data found.</td></tr>`;
+                        }
+                    },
+                    error: function(err) {
+                        document.querySelector("#sheetTable tbody").innerHTML =
+                            `<tr><td colspan="9" class="loading error">Parsing error: ${err.message}</td></tr>`;
+                    }
+                });
+            })
+            .catch(error => {
+                console.error("Fetch error:", error);
+                document.querySelector("#sheetTable tbody").innerHTML =
+                    `<tr><td colspan="9" class="loading error">Failed to load data.<br>Reason: ${error.message}</td></tr>`;
+            });
+    </script>
+</body>
+</html>
